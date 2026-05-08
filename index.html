@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sudoku</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --bg-secondary: #f5f5f4;
+      --text: #1a1a18;
+      --text-secondary: #6b6b67;
+      --border: rgba(0,0,0,0.15);
+      --border-strong: rgba(0,0,0,0.35);
+      --blue: #185FA5;
+      --blue-light: #E6F1FB;
+      --green-light: #EAF3DE;
+      --red: #A32D2D;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1a;
+        --bg-secondary: #242422;
+        --text: #e8e8e4;
+        --text-secondary: #8a8a84;
+        --border: rgba(255,255,255,0.15);
+        --border-strong: rgba(255,255,255,0.35);
+        --blue: #85B7EB;
+        --blue-light: #042C53;
+        --green-light: #173404;
+        --red: #F09595;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    #app { width: 100%; max-width: 500px; }
+
+    h1 { font-size: 24px; font-weight: 600; letter-spacing: 0.08em; margin-bottom: 4px; }
+
+    .subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.25rem; }
+
+    .controls { display: flex; gap: 8px; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; }
+
+    .diff-btn {
+      font-size: 12px; padding: 5px 14px; border-radius: 20px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text-secondary); cursor: pointer; transition: all 0.15s;
+    }
+    .diff-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+    .diff-btn:hover:not(.active) { background: var(--bg-secondary); }
+
+    .new-btn {
+      font-size: 12px; padding: 5px 14px; border-radius: 20px;
+      border: 1px solid var(--border); background: transparent; color: var(--text);
+      cursor: pointer; margin-left: auto; display: flex; align-items: center; gap: 4px;
+    }
+    .new-btn:hover { background: var(--bg-secondary); }
+
+    .status-bar { display: flex; gap: 16px; margin-bottom: 12px; font-size: 13px; }
+    .stat { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); }
+    .stat span { font-weight: 600; color: var(--text); }
+
+    .board-wrap { border: 2px solid var(--border-strong); border-radius: var(--radius-md); overflow: hidden; width: 100%; }
+
+    .board { display: grid; grid-template-columns: repeat(9, 1fr); width: 100%; aspect-ratio: 1; }
+
+    .cell {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      font-size: clamp(13px, 3vw, 20px); cursor: pointer;
+      border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      transition: background 0.1s; user-select: none;
+    }
+    .cell:nth-child(3n)         { border-right: 2px solid var(--border-strong); }
+    .cell:nth-child(9n)         { border-right: none; }
+    .cell:nth-child(n+19):nth-child(-n+27),
+    .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid var(--border-strong); }
+    .cell:nth-child(n+73):nth-child(-n+81) { border-bottom: none; }
+    .cell.given   { font-weight: 600; color: var(--text); }
+    .cell.user    { color: var(--blue); }
+    .cell.selected  { background: var(--blue-light); }
+    .cell.highlight { background: var(--bg-secondary); }
+    .cell.error   { color: var(--red) !important; }
+
+    @keyframes flash { 0%,100%{background:transparent} 50%{background:var(--green-light)} }
+
+    .notes { display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr); width: 100%; height: 100%; padding: 2px; }
+    .note { font-size: 8px; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; line-height: 1; }
+
+    .numpad { display: grid; grid-template-columns: repeat(9,1fr); gap: 4px; margin-top: 12px; }
+    .num-btn {
+      aspect-ratio: 1; border-radius: var(--radius-md); border: 1px solid var(--border);
+      background: var(--bg); font-size: 16px; font-weight: 500; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: all 0.1s; color: var(--text);
+    }
+    .num-btn:hover { background: var(--bg-secondary); border-color: var(--border-strong); }
+
+    .actions { display: flex; gap: 8px; margin-top: 8px; }
+    .act-btn {
+      flex: 1; padding: 8px; border-radius: var(--radius-md); border: 1px solid var(--border);
+      background: var(--bg); font-size: 12px; cursor: pointer; color: var(--text-secondary);
+      display: flex; align-items: center; justify-content: center; gap: 5px; transition: background 0.1s;
+    }
+    .act-btn:hover    { background: var(--bg-secondary); }
+    .act-btn.active   { color: var(--blue); border-color: var(--blue); }
+
+    .win-msg {
+      margin-top: 1rem; padding: 14px 16px; background: var(--bg-secondary);
+      border-radius: var(--radius-lg); border: 1px solid var(--border); text-align: center; display: none;
+    }
+    .win-msg.show { display: block; }
+    .win-msg p    { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .win-msg small { font-size: 12px; color: var(--text-secondary); }
+
+    /* ===== MUSIC PLAYER ===== */
+    .player {
+      margin-top: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .player-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 14px; border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none; background: var(--bg-secondary);
+    }
+    .player-header-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
+    .player-header-left i { font-size: 16px; color: var(--blue); }
+    .chevron { font-size: 14px; color: var(--text-secondary); transition: transform 0.2s; }
+    .chevron.open { transform: rotate(180deg); }
+
+    .player-body { display: none; background: var(--bg); }
+    .player-body.open { display: block; }
+
+    .now-playing { padding: 14px 14px 0; }
+
+    .track-name {
+      font-size: 14px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 10px;
+    }
+    .track-name.empty { color: var(--text-secondary); font-weight: 400; font-style: italic; }
+
+    .progress-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .t-label { font-size: 11px; color: var(--text-secondary); min-width: 32px; font-variant-numeric: tabular-nums; }
+    .t-label.right { text-align: right; }
+
+    .prog-bar {
+      flex: 1; height: 4px; background: var(--border);
+      border-radius: 2px; cursor: pointer; position: relative;
+    }
+    .prog-fill {
+      height: 100%; background: var(--blue); border-radius: 2px;
+      width: 0%; pointer-events: none;
+    }
+
+    .transport {
+      display: flex; align-items: center; justify-content: center;
+      gap: 6px; padding: 0 14px 14px;
+    }
+    .tp {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 1px solid var(--border); background: transparent;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      color: var(--text-secondary); font-size: 16px; transition: all 0.1s;
+    }
+    .tp:hover { background: var(--bg-secondary); color: var(--text); }
+    .tp.play {
+      width: 44px; height: 44px; background: var(--text);
+      color: var(--bg); border-color: var(--text); font-size: 18px;
+    }
+    .tp.play:hover { opacity: 0.85; }
+    .tp.on { color: var(--blue); border-color: var(--blue); }
+
+    .vol-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 14px 12px;
+    }
+    .vol-row i { font-size: 15px; color: var(--text-secondary); }
+    .vol-row input { flex: 1; accent-color: var(--blue); cursor: pointer; }
+
+    .upload-row {
+      padding: 10px 14px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .upload-btn {
+      font-size: 12px; padding: 6px 12px; border-radius: var(--radius-md);
+      border: 1px solid var(--border); background: var(--bg-secondary);
+      color: var(--text); cursor: pointer; display: flex; align-items: center;
+      gap: 5px; white-space: nowrap; transition: background 0.1s;
+    }
+    .upload-btn:hover { background: var(--border); }
+    .upload-btn i { font-size: 14px; }
+    .upload-hint { font-size: 12px; color: var(--text-secondary); }
+
+    .playlist {
+      border-top: 1px solid var(--border);
+      max-height: 200px; overflow-y: auto;
+    }
+    .playlist:empty { display: none; }
+
+    .pl-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 14px; cursor: pointer; font-size: 13px;
+      border-bottom: 1px solid var(--border); transition: background 0.1s;
+    }
+    .pl-item:last-child { border-bottom: none; }
+    .pl-item:hover { background: var(--bg-secondary); }
+    .pl-item.active { background: var(--blue-light); }
+    .pl-item.active .pl-name { color: var(--blue); font-weight: 500; }
+
+    .pl-num { font-size: 11px; color: var(--text-secondary); min-width: 18px; text-align: right; }
+    .pl-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pl-del {
+      font-size: 13px; color: var(--text-secondary); opacity: 0;
+      transition: opacity 0.1s; background: none; border: none; cursor: pointer; padding: 2px;
+    }
+    .pl-item:hover .pl-del { opacity: 1; }
+    .pl-del:hover { color: var(--red); }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <h2 class="sr-only">Sudoku game</h2>
+  <h1>SUDOKU</h1>
+  <p class="subtitle">Fill each row, column &amp; box with 1–9.</p>
+
+  <div class="controls">
+    <button class="diff-btn active" onclick="setDiff('easy')">Easy</button>
+    <button class="diff-btn" onclick="setDiff('medium')">Medium</button>
+    <button class="diff-btn" onclick="setDiff('hard')">Hard</button>
+    <button class="new-btn" onclick="newGame()">
+      <i class="ti ti-refresh" aria-hidden="true"></i> New Game
+    </button>
+  </div>
+
+  <div class="status-bar">
+    <div class="stat"><i class="ti ti-clock" aria-hidden="true" style="font-size:14px"></i> <span id="timer">0:00</span></div>
+    <div class="stat"><i class="ti ti-x" aria-hidden="true" style="font-size:14px"></i> Errors: <span id="errors">0</span></div>
+    <div class="stat"><i class="ti ti-layout-grid" aria-hidden="true" style="font-size:14px"></i> Remaining: <span id="remaining">0</span></div>
+  </div>
+
+  <div class="board-wrap"><div class="board" id="board"></div></div>
+  <div class="numpad" id="numpad"></div>
+
+  <div class="actions">
+    <button class="act-btn" id="noteBtn" onclick="toggleNoteMode()">
+      <i class="ti ti-pencil" aria-hidden="true"></i> Notes
+    </button>
+    <button class="act-btn" onclick="erase()">
+      <i class="ti ti-eraser" aria-hidden="true"></i> Erase
+    </button>
+    <button class="act-btn" onclick="hint()">
+      <i class="ti ti-bulb" aria-hidden="true"></i> Hint
+    </button>
+  </div>
+
+  <div class="win-msg" id="winMsg">
+    <p>🎉 Puzzle Complete!</p>
+    <small id="winDetail"></small>
+  </div>
+
+  <!-- ===== MUSIC PLAYER ===== -->
+  <div class="player">
+    <div class="player-header" onclick="togglePlayer()">
+      <div class="player-header-left">
+        <i class="ti ti-music" aria-hidden="true"></i>
+        <span>Music</span>
+        <span id="nowPlayingLabel" style="font-weight:400;color:var(--text-secondary);font-size:12px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
+      </div>
+      <i class="ti ti-chevron-down chevron" id="chevron" aria-hidden="true"></i>
+    </div>
+
+    <div class="player-body" id="playerBody">
+
+      <div class="now-playing">
+        <div class="track-name empty" id="trackName">No track selected</div>
+        <div class="progress-wrap">
+          <span class="t-label" id="curTime">0:00</span>
+          <div class="prog-bar" id="progBar" onclick="seekTo(event)">
+            <div class="prog-fill" id="progFill"></div>
+          </div>
+          <span class="t-label right" id="durTime">0:00</span>
+        </div>
+      </div>
+
+      <div class="transport">
+        <button class="tp" onclick="prevTrack()" aria-label="Previous"><i class="ti ti-player-skip-back" aria-hidden="true"></i></button>
+        <button class="tp play" id="ppBtn" onclick="togglePlay()" aria-label="Play/Pause"><i class="ti ti-player-play" id="ppIcon" aria-hidden="true"></i></button>
+        <button class="tp" onclick="nextTrack()" aria-label="Next"><i class="ti ti-player-skip-forward" aria-hidden="true"></i></button>
+        <button class="tp" id="shuffleBtn" onclick="toggleShuffle()" aria-label="Shuffle" style="margin-left:4px"><i class="ti ti-arrows-shuffle" aria-hidden="true"></i></button>
+        <button class="tp" id="repeatBtn" onclick="toggleRepeat()" aria-label="Repeat"><i class="ti ti-repeat" id="repeatIcon" aria-hidden="true"></i></button>
+      </div>
+
+      <div class="vol-row">
+        <i class="ti ti-volume" aria-hidden="true"></i>
+        <input type="range" min="0" max="1" step="0.01" value="0.8" oninput="audio.volume=this.value" />
+      </div>
+
+      <div class="upload-row">
+        <button class="upload-btn" onclick="document.getElementById('fileIn').click()">
+          <i class="ti ti-upload" aria-hidden="true"></i> Add MP3s
+        </button>
+        <span class="upload-hint" id="hint">No tracks loaded</span>
+        <input type="file" id="fileIn" accept=".mp3,audio/*" multiple style="display:none" onchange="loadFiles(this.files)" />
+      </div>
+
+      <div class="playlist" id="playlist"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  /* ========== SUDOKU ========== */
+  let grid=[], solution=[], given=[], notes=[], selected=null;
+  let errors=0, difficulty='easy', noteMode=false, timerSec=0, timerInt=null, won=false;
+
+  function solveSudoku(g) {
+    const empty=[];
+    for(let i=0;i<81;i++) if(g[i]===0) empty.push(i);
+    function valid(g,idx,n){
+      const r=Math.floor(idx/9),c=idx%9;
+      for(let i=0;i<9;i++){if(g[r*9+i]===n)return false;if(g[i*9+c]===n)return false;}
+      const br=Math.floor(r/3)*3,bc=Math.floor(c/3)*3;
+      for(let dr=0;dr<3;dr++)for(let dc=0;dc<3;dc++)if(g[(br+dr)*9+(bc+dc)]===n)return false;
+      return true;
+    }
+    function solve(pos){
+      if(pos===empty.length)return true;
+      const idx=empty[pos];
+      const nums=[1,2,3,4,5,6,7,8,9].sort(()=>Math.random()-0.5);
+      for(let n of nums){if(valid(g,idx,n)){g[idx]=n;if(solve(pos+1))return true;g[idx]=0;}}
+      return false;
+    }
+    solve(0);return g;
+  }
+
+  function generatePuzzle(diff){
+    let s=Array(81).fill(0); solveSudoku(s);
+    const sol=[...s], removes=diff==='easy'?36:diff==='medium'?46:54;
+    let positions=[...Array(81).keys()].sort(()=>Math.random()-0.5),removed=0,p=[...s];
+    for(let idx of positions){if(removed>=removes)break;p[idx]=0;removed++;}
+    return{puzzle:p,solution:sol};
+  }
+
+  function newGame(){
+    clearInterval(timerInt);timerSec=0;won=false;
+    const{puzzle,solution:sol}=generatePuzzle(difficulty);
+    grid=[...puzzle];solution=sol;given=grid.map(v=>v!==0);
+    notes=Array(81).fill(null).map(()=>new Set());
+    errors=0;selected=null;
+    document.getElementById('errors').textContent='0';
+    document.getElementById('timer').textContent='0:00';
+    document.getElementById('winMsg').classList.remove('show');
+    render();updateRemaining();
+    timerInt=setInterval(()=>{
+      timerSec++;
+      const m=Math.floor(timerSec/60),s=timerSec%60;
+      document.getElementById('timer').textContent=`${m}:${s.toString().padStart(2,'0')}`;
+    },1000);
+  }
+
+  function setDiff(d){
+    difficulty=d;
+    document.querySelectorAll('.diff-btn').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase()===d));
+    newGame();
+  }
+
+  function render(){
+    const board=document.getElementById('board');board.innerHTML='';
+    for(let i=0;i<81;i++){
+      const cell=document.createElement('div');cell.className='cell';cell.dataset.idx=i;
+      if(given[i]){cell.classList.add('given');cell.textContent=grid[i];}
+      else if(grid[i]){cell.classList.add('user');if(grid[i]!==solution[i])cell.classList.add('error');cell.textContent=grid[i];}
+      else if(notes[i].size>0){
+        const nd=document.createElement('div');nd.className='notes';
+        for(let n=1;n<=9;n++){const s=document.createElement('div');s.className='note';s.textContent=notes[i].has(n)?n:'';nd.appendChild(s);}
+        cell.appendChild(nd);
+      }
+      if(selected===i){cell.classList.add('selected');}
+      else if(selected!==null){
+        const sr=Math.floor(selected/9),sc=selected%9,sbr=Math.floor(sr/3),sbc=Math.floor(sc/3);
+        const r=Math.floor(i/9),c=i%9;
+        if(r===sr||c===sc||(Math.floor(r/3)===sbr&&Math.floor(c/3)===sbc))cell.classList.add('highlight');
+        if(grid[selected]&&grid[i]===grid[selected])cell.classList.add('highlight');
+      }
+      cell.addEventListener('click',()=>selectCell(parseInt(cell.dataset.idx)));
+      board.appendChild(cell);
+    }
+    const np=document.getElementById('numpad');np.innerHTML='';
+    for(let n=1;n<=9;n++){
+      const b=document.createElement('button');b.className='num-btn';b.textContent=n;
+      b.addEventListener('click',()=>inputNum(n));np.appendChild(b);
+    }
+  }
+
+  function selectCell(idx){selected=idx;render();}
+
+  function inputNum(n){
+    if(selected===null||given[selected]||won)return;
+    if(noteMode){if(grid[selected])return;if(notes[selected].has(n))notes[selected].delete(n);else notes[selected].add(n);render();return;}
+    notes[selected].clear();
+    if(grid[selected]!==n){
+      if(grid[selected]!==0&&grid[selected]!==solution[selected])errors--;
+      grid[selected]=n;
+      if(n!==solution[selected]){errors++;document.getElementById('errors').textContent=errors;}
+    }
+    render();updateRemaining();checkWin();
+  }
+
+  function erase(){
+    if(selected===null||given[selected]||won)return;
+    if(grid[selected]&&grid[selected]!==solution[selected])errors--;
+    grid[selected]=0;notes[selected].clear();
+    document.getElementById('errors').textContent=errors;
+    render();updateRemaining();
+  }
+
+  function hint(){
+    if(selected===null||given[selected]||won)return;
+    const correct=solution[selected];
+    if(grid[selected]!==correct){
+      if(grid[selected]&&grid[selected]!==correct)errors--;
+      grid[selected]=correct;notes[selected].clear();
+      document.getElementById('errors').textContent=errors;
+      render();updateRemaining();checkWin();
+    }
+  }
+
+  function toggleNoteMode(){noteMode=!noteMode;document.getElementById('noteBtn').classList.toggle('active',noteMode);}
+  function updateRemaining(){document.getElementById('remaining').textContent=grid.filter(v=>v===0).length;}
+
+  function checkWin(){
+    if(grid.every((v,i)=>v===solution[i])){
+      won=true;clearInterval(timerInt);
+      const m=Math.floor(timerSec/60),s=timerSec%60;
+      document.getElementById('winDetail').textContent=`Solved in ${m}:${s.toString().padStart(2,'0')} with ${errors} error${errors!==1?'s':''}.`;
+      document.getElementById('winMsg').classList.add('show');
+    }
+  }
+
+  document.addEventListener('keydown',e=>{
+    if(selected===null)return;
+    if(e.key>='1'&&e.key<='9'){inputNum(parseInt(e.key));return;}
+    if(e.key==='Backspace'||e.key==='Delete'){erase();return;}
+    const r=Math.floor(selected/9),c=selected%9;
+    if(e.key==='ArrowUp'&&r>0){selected=(r-1)*9+c;render();}
+    else if(e.key==='ArrowDown'&&r<8){selected=(r+1)*9+c;render();}
+    else if(e.key==='ArrowLeft'&&c>0){selected=r*9+c-1;render();}
+    else if(e.key==='ArrowRight'&&c<8){selected=r*9+c+1;render();}
+  });
+
+  newGame();
+
+  /* ========== MUSIC PLAYER ========== */
+  const audio = new Audio();
+  audio.volume = 0.8;
+  let tracks = [], curIdx = -1, isPlaying = false, shuffleOn = false, repeatMode = 'none';
+
+  function togglePlayer(){
+    const body=document.getElementById('playerBody'),ch=document.getElementById('chevron');
+    const open=body.classList.toggle('open');
+    ch.classList.toggle('open',open);
+  }
+
+  function loadFiles(files){
+    Array.from(files).forEach(f=>{
+      tracks.push({name:f.name.replace(/\.[^.]+$/,'').replace(/[-_]/g,' '),url:URL.createObjectURL(f)});
+    });
+    updateHint();renderPlaylist();
+    if(curIdx===-1&&tracks.length>0) loadTrack(0);
+    // auto-open player
+    const body=document.getElementById('playerBody');
+    if(!body.classList.contains('open')) togglePlayer();
+  }
+
+  function updateHint(){
+    document.getElementById('hint').textContent=tracks.length===0?'No tracks loaded':`${tracks.length} track${tracks.length!==1?'s':''} loaded`;
+  }
+
+  function loadTrack(idx){
+    if(idx<0||idx>=tracks.length)return;
+    curIdx=idx;
+    audio.src=tracks[idx].url;
+    document.getElementById('trackName').textContent=tracks[idx].name;
+    document.getElementById('trackName').classList.remove('empty');
+    document.getElementById('nowPlayingLabel').textContent='— '+tracks[idx].name;
+    renderPlaylist();
+  }
+
+  function togglePlay(){
+    if(tracks.length===0)return;
+    if(curIdx===-1)loadTrack(0);
+    if(isPlaying){audio.pause();}else{audio.play();}
+  }
+
+  function prevTrack(){
+    if(!tracks.length)return;
+    loadTrack(curIdx<=0?tracks.length-1:curIdx-1);
+    if(isPlaying)audio.play();
+  }
+
+  function nextTrack(){
+    if(!tracks.length)return;
+    let idx;
+    if(shuffleOn){do{idx=Math.floor(Math.random()*tracks.length);}while(tracks.length>1&&idx===curIdx);}
+    else{idx=(curIdx+1)%tracks.length;}
+    loadTrack(idx);
+    if(isPlaying)audio.play();
+  }
+
+  function toggleShuffle(){
+    shuffleOn=!shuffleOn;
+    document.getElementById('shuffleBtn').classList.toggle('on',shuffleOn);
+  }
+
+  function toggleRepeat(){
+    const modes=['none','all','one'];
+    repeatMode=modes[(modes.indexOf(repeatMode)+1)%modes.length];
+    const btn=document.getElementById('repeatBtn');
+    btn.classList.toggle('on',repeatMode!=='none');
+    document.getElementById('repeatIcon').className=repeatMode==='one'?'ti ti-repeat-once':'ti ti-repeat';
+  }
+
+  function seekTo(e){
+    if(!audio.duration)return;
+    const bar=document.getElementById('progBar'),rect=bar.getBoundingClientRect();
+    audio.currentTime=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width))*audio.duration;
+  }
+
+  function fmt(s){if(isNaN(s))return'0:00';const m=Math.floor(s/60),sec=Math.floor(s%60);return`${m}:${sec.toString().padStart(2,'0')}`;}
+
+  audio.addEventListener('timeupdate',()=>{
+    if(!audio.duration)return;
+    document.getElementById('progFill').style.width=((audio.currentTime/audio.duration)*100)+'%';
+    document.getElementById('curTime').textContent=fmt(audio.currentTime);
+    document.getElementById('durTime').textContent=fmt(audio.duration);
+  });
+
+  audio.addEventListener('play',()=>{isPlaying=true;document.getElementById('ppIcon').className='ti ti-player-pause';});
+  audio.addEventListener('pause',()=>{isPlaying=false;document.getElementById('ppIcon').className='ti ti-player-play';});
+
+  audio.addEventListener('ended',()=>{
+    if(repeatMode==='one'){audio.currentTime=0;audio.play();}
+    else if(repeatMode==='all'||shuffleOn||curIdx<tracks.length-1){nextTrack();}
+    else{isPlaying=false;document.getElementById('ppIcon').className='ti ti-player-play';}
+  });
+
+  function removeTrack(idx,e){
+    e.stopPropagation();
+    URL.revokeObjectURL(tracks[idx].url);
+    tracks.splice(idx,1);
+    if(curIdx===idx){
+      audio.pause();audio.src='';isPlaying=false;
+      document.getElementById('ppIcon').className='ti ti-player-play';
+      document.getElementById('trackName').textContent='No track selected';
+      document.getElementById('trackName').classList.add('empty');
+      document.getElementById('nowPlayingLabel').textContent='';
+      document.getElementById('progFill').style.width='0%';
+      document.getElementById('curTime').textContent='0:00';
+      document.getElementById('durTime').textContent='0:00';
+      curIdx=tracks.length>0?Math.min(idx,tracks.length-1):-1;
+      if(curIdx>=0)loadTrack(curIdx);
+    } else if(idx<curIdx){curIdx--;}
+    updateHint();renderPlaylist();
+  }
+
+  function renderPlaylist(){
+    const pl=document.getElementById('playlist');pl.innerHTML='';
+    tracks.forEach((t,i)=>{
+      const item=document.createElement('div');
+      item.className='pl-item'+(i===curIdx?' active':'');
+      item.innerHTML=`<span class="pl-num">${i+1}</span><span class="pl-name">${t.name}</span><button class="pl-del" aria-label="Remove"><i class="ti ti-x" aria-hidden="true"></i></button>`;
+      item.addEventListener('click',()=>{loadTrack(i);if(!isPlaying){audio.play();}});
+      item.querySelector('.pl-del').addEventListener('click',e=>removeTrack(i,e));
+      pl.appendChild(item);
+    });
+  }
+</script>
+</body>
+</html>
